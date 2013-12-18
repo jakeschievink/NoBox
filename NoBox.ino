@@ -1,47 +1,109 @@
 /*
  * No Box
+ * Written by Jake Schievink
  */
-#define SERVOSECTION = 1;
-#define PEIZOSECTION = 2;
-#define SHOCKSECTION = 3;
-const int capacativePin = 2;
+#include <CapSense.h>
+#include <Servo.h>
+
+//#define DEBUG
+#define TOPSECTION  1
+#define MIDSECTION  2
+#define DONE  3
+
+const int capacativeReaderPin = 4;
+const int capacativeSensorPin = 2;
+
+const int solenoidPin = 12;
 const int piezoPin = 11;
-const int servoPin = 10;
-const int solenoidPin = 10;
+const int ledPin = 10;
+const int servoPin = 9;
 const int potentiometerPin = A0;
-int currentLevel = SERVOSECTION;
+
+//Servo Start and End Positions
+const int servoStartPosition = 0;
+const int servoEndPosition = 180;
+
+//Base value for capacative touch. 
+const int capPressed = 1000;
+
+int currentLevel = TOPSECTION;
 int potentiometerValue;
+
+long capVal;
+
+CapSense capacativeSense = CapSense( capacativeSensorPin, capacativeReaderPin); 
+Servo servo;
 
 void setup(){
 	Serial.begin(9600);
-    pinMode(peizoPin, OUTPUT);
-    pinMode(servoPin, OUTPUT);
+    pinMode(ledPin, OUTPUT);
+    pinMode(piezoPin, OUTPUT);
     pinMode(solenoidPin, OUTPUT);
-    pinMode(capacativePin, OUTPUT);
-
+    pinMode(capacativeReaderPin, OUTPUT);
+    servo.attach(servoPin)
+    servo.write(servoStartPosition);
 }
+
 void loop(){
+    Serial.print("CapValue: ");
+    Serial.println(capacativeSense.capSense(30));
     switch(currentLevel){
-        SERVOSECTION:
-            if(digitalRead(capacativePin == HIGH)){
+
+        case TOPSECTION:
+            capVal =  capacativeSense.capSense(30);
+            if(capacativeDone()){
                 openBox();
-                currentLevel = PEIZOSECTION;
+                analogWrite(piezoPin, 100);
+                currentLevel = MIDSECTION;
                    
             }
-            break;
-        PEIZOSECTION:
+           break;
+
+        case MIDSECTION:
+            
             potentiometerValue = readPotentiometer();
-            analogWrite(piezoPin, map(potentiometerValue, 0, 1024, 0, 255));
+
+            analogWrite(piezoPin, map(potentiometerValue, 0, 1024, 110, 255));
             analogWrite(ledPin, map(potentiometerValue, 0, 1024, 0, 255));
-            if(potentiometerValue == 1024){
-                
+
+            if(potentiometerValue == 1023){
+                solenoidOpen();
+                currentLevel = DONE;
             }
+            #if defined DEBUG
+                Serial.print("potval: ");
+                Serial.println(potentiometerValue);
+            #endif 
             break;    
+
+        case DONE:
+            analogWrite(piezoPin, LOW);
+            analogWrite(ledPin, LOW);
+            #if defined DEBUG
+//                Serial.println("done");
+            #endif
+            break;
+           
     }
 }
+
+boolean capacativeDone(){
+    if(capVal < capPressed){
+        return false;
+    }else{
+        return true;
+    }
+    
+}
+
 int readPotentiometer(){
    return analogRead(potentiometerPin);
 }
-void openBox(){
-    
+
+void solenoidOpen(){
+    digitalWrite(solenoidPin, HIGH);
 }
+
+void openBox(){
+    servo.write(servoEndPosition);
+}    
